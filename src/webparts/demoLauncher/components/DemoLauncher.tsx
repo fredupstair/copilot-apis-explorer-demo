@@ -33,7 +33,7 @@ import {
 import { MSGraphClientV3 } from '@microsoft/sp-http';
 
 import type { IDemoLauncherProps } from './IDemoLauncherProps';
-import { ApiId, AuthMode, IApiCallResult, IQueryParam, IRetrievalRequest } from './types';
+import { ApiId, AuthMode, IApiCallResult, IQueryParam, IRetrievalRequest, RetrievalDataSource } from './types';
 import {
   API_CATALOG,
   API_ORDER,
@@ -51,11 +51,24 @@ import PermissionMatrix from './PermissionMatrix';
 
 // ---- helpers to build the initial, per-API state -----------------------------
 
+/** Sentinel itemKey for the leading "Permission matrix (all APIs)" tab. */
+const PERMISSIONS_TAB = 'permissions';
+type ActiveTab = ApiId | typeof PERMISSIONS_TAB;
+
 /** Clone the default params so edits never mutate the shared catalog. */
-function initialParams(): Record<ApiId, IQueryParam[]> {
+function initialParams(currentUserUpn: string): Record<ApiId, IQueryParam[]> {
   const record = {} as Record<ApiId, IQueryParam[]>;
   for (const id of API_ORDER) {
     record[id] = (API_CATALOG[id].defaultParams ?? []).map((p) => ({ ...p }));
+  }
+  // Prepopulate the Interaction Export userId with the current user's UPN
+  // (the Graph /users/{id} segment accepts either the AAD object id or the UPN).
+  if (currentUserUpn) {
+    const interaction = record.interactionExport;
+    const userIdParam = interaction.find((p) => p.key === 'userId');
+    if (userIdParam && !userIdParam.value) {
+      userIdParam.value = currentUserUpn;
+    }
   }
   return record;
 }
@@ -76,7 +89,13 @@ const DemoLauncher: React.FC<IDemoLauncherProps> = (props) => {
     description
   } = props;
 
+  // ---- current user UPN (used to prepopulate the Interaction Export userId) ----
+  const currentUserUpn = context.pageContext.user.loginName ?? '';
+
   // ---- top-level UI state ----
+  // The leading "Permission matrix (all APIs)" pseudo-tab is shown first.
+  const [activeTab, setActiveTab] = React.useState<ActiveTab>(PERMISSIONS_TAB);
+  // The last API tab the user opened; used for the rest of the workspace.
   const [activeApiId, setActiveApiId] = React.useState<ApiId>('retrieval');
 
   // ---- auth state ----
@@ -86,14 +105,20 @@ const DemoLauncher: React.FC<IDemoLauncherProps> = (props) => {
   const [appToken, setAppToken] = React.useState<string>('');
 
   // ---- per-API request state ----
-  const [params, setParams] = React.useState<Record<ApiId, IQueryParam[]>>(initialParams);
+  const [params, setParams] = React.useState<Record<ApiId, IQueryParam[]>>(() =>
+    initialParams(currentUserUpn)
+  );
   const [endpoints, setEndpoints] = React.useState<Record<ApiId, string>>(() =>
-    initialEndpoints(initialParams())
+    initialEndpoints(initialParams(currentUserUpn))
   );
   const [bodyText, setBodyText] = React.useState<string>(
     JSON.stringify(API_CATALOG.retrieval.defaultBody, undefined, 2)
   );
-  const [kqlFilter, setKqlFilter] = React.useState<string>('');
+
+  // ---- Interaction Export filter state (translated into a $filter query param) ----
+  const [interactionAppClasses, setInteractionAppClasses] = React.useState<string[]>([]);
+  const [interactionFrom, setInteractionFrom] = React.useState<string>('');
+  const [interactionTo, setInteractionTo] = React.useState<string>('');
 
   // ---- per-API response state ----
   const [results, setResults] = React.useState<Partial<Record<ApiId, IApiCallResult>>>({});
@@ -108,23 +133,164 @@ const DemoLauncher: React.FC<IDemoLauncherProps> = (props) => {
     [api, authMode, decoded]
   );
 
-  /** Retrieval body actually sent: bodyText parsed + the KQL filter injected. */
+  /** Retrieval body actually sent: simply the parsed bodyText (single source of truth). */
   const effectiveRetrievalBody = React.useMemo<IRetrievalRequest | undefined>(() => {
     if (api.method !== 'POST') {
       return undefined;
     }
     try {
-      const parsed = JSON.parse(bodyText) as IRetrievalRequest;
-      if (kqlFilter.trim().length > 0) {
-        parsed.filterExpression = kqlFilter.trim();
-      } else {
-        delete parsed.filterExpression;
-      }
-      return parsed;
+      return JSON.parse(bodyText) as IRetrievalRequest;
     } catch {
       return undefined; // invalid JSON – execution will report it
     }
-  }, [api.method, bodyText, kqlFilter]);
+  }, [api.method, bodyText]);
+
+  /** Currently-selected resourceMetadata fields, derived from the live JSON body. */
+  const selectedRetrievalFields = React.useMemo<string[]>(() => {
+    try {
+      const parsed = JSON.parse(bodyText) as IRetrievalRequest;
+      return Array.isArray(parsed.resourceMetadata) ? parsed.resourceMetadata : [];
+    } catch {
+      return [];
+    }
+  }, [bodyText]);
+
+  /** Live query string, derived from the JSON body. */
+  const retrievalQueryString = React.useMemo<string>(() => {
+    try {
+      const parsed = JSON.parse(bodyText) as IRetrievalRequest;
+      return parsed.queryString ?? '';
+    } catch {
+      return '';
+    }
+  }, [bodyText]);
+
+  /** Live KQL filter, derived from the JSON body. */
+  const retrievalKqlFilter = React.useMemo<string>(() => {
+    try {
+      const parsed = JSON.parse(bodyText) as IRetrievalRequest;
+      return parsed.filterExpression ?? '';
+    } catch {
+      return '';
+    }
+  }, [bodyText]);
+
+  /** Live data source, derived from the JSON body. */
+  const retrievalDataSource = React.useMemo<RetrievalDataSource | undefined>(() => {
+    try {
+      const parsed = JSON.parse(bodyText) as IRetrievalRequest;
+      return parsed.dataSource;
+    } catch {
+      return undefined;
+    }
+  }, [bodyText]);
+
+  /** Mutate a top-level property of the JSON body and re-serialise. */
+  const updateRetrievalBody = (mutator: (body: IRetrievalRequest) => void): void => {
+    try {
+      const parsed = JSON.parse(bodyText) as IRetrievalRequest;
+      mutator(parsed);
+      setBodyText(JSON.stringify(parsed, undefined, 2));
+    } catch {
+      // Invalid JSON – leave the body alone so the user can fix it manually.
+    }
+  };
+
+  const handleQueryStringChange = (value: string): void => {
+    updateRetrievalBody((body) => {
+      body.queryString = value;
+    });
+  };
+
+  const handleKqlFilterChange = (value: string): void => {
+    updateRetrievalBody((body) => {
+      if (value.trim().length > 0) {
+        body.filterExpression = value;
+      } else {
+        delete body.filterExpression;
+      }
+    });
+  };
+
+  const handleDataSourceChange = (value: RetrievalDataSource): void => {
+    updateRetrievalBody((body) => {
+      body.dataSource = value;
+    });
+  };
+
+  // ---- Interaction Export: build the $filter OData expression from the
+  //      structured inputs and keep the interactionExport params in sync.
+  /** Convert a local datetime-local value ("2025-11-24T08:00") to an ISO-Z
+   *  string ("2025-11-24T08:00:00Z") suitable for an OData filter. The input is
+   *  treated as UTC for simplicity (datetime-local has no timezone), so the
+   *  user can paste a UTC timestamp directly. */
+  const toUtcIso = (local: string): string => {
+    if (!local) {
+      return '';
+    }
+    if (/Z$/i.test(local)) {
+      return local;
+    }
+    if (local.length === 16) {
+      return `${local}:00Z`;
+    }
+    if (local.length === 19) {
+      return `${local}Z`;
+    }
+    return local;
+  };
+
+  const interactionFilter = React.useMemo<string>(() => {
+    const parts: string[] = [];
+    const from = toUtcIso(interactionFrom);
+    const to = toUtcIso(interactionTo);
+    if (from && to) {
+      parts.push(`createdDateTime gt ${from} and createdDateTime lt ${to}`);
+    }
+    if (interactionAppClasses.length > 0) {
+      const inner = interactionAppClasses
+        .map((c) => `appClass eq '${c}'`)
+        .join(' or ');
+      parts.push(interactionAppClasses.length === 1 ? inner : `(${inner})`);
+    }
+    return parts.join(' and ');
+  }, [interactionAppClasses, interactionFrom, interactionTo]);
+
+  React.useEffect(() => {
+    setParams((prev) => {
+      const next = { ...prev };
+      const stripped = next.interactionExport.filter((p) => p.key !== '$filter');
+      const updated =
+        interactionFilter.length > 0
+          ? [
+              ...stripped,
+              {
+                key: '$filter',
+                value: interactionFilter,
+                location: 'query' as const,
+                hint: 'Auto-generated from the filter selectors below.'
+              }
+            ]
+          : stripped;
+      next.interactionExport = updated;
+      setEndpoints((eps) => ({
+        ...eps,
+        interactionExport: buildUrl(API_CATALOG.interactionExport.urlTemplate, updated)
+      }));
+      return next;
+    });
+  }, [interactionFilter]);
+
+  /** Update the JSON body to reflect a new set of selected metadata fields. */
+  const handleSelectedFieldsChange = (fields: string[]): void => {
+    updateRetrievalBody((body) => {
+      if (fields.length > 0) {
+        body.resourceMetadata = fields;
+      } else {
+        delete body.resourceMetadata;
+      }
+    });
+  };
 
   // ---- handlers ----------------------------------------------------------------
 
@@ -291,8 +457,6 @@ const DemoLauncher: React.FC<IDemoLauncherProps> = (props) => {
               appToken={appToken}
               onAppTokenChange={handleAppTokenChange}
               decoded={decoded}
-              permissionCheck={permissionCheck}
-              selectedApiTitle={api.title}
             />
           </div>
 
@@ -307,14 +471,26 @@ const DemoLauncher: React.FC<IDemoLauncherProps> = (props) => {
             }}
           >
             <Pivot
-              selectedKey={activeApiId}
+              selectedKey={activeTab}
               onLinkClick={(item) => {
-                if (item?.props.itemKey) {
-                  setActiveApiId(item.props.itemKey as ApiId);
+                const key = item?.props.itemKey;
+                if (!key) {
+                  return;
+                }
+                if (key === PERMISSIONS_TAB) {
+                  setActiveTab(PERMISSIONS_TAB);
+                } else {
+                  setActiveTab(key as ApiId);
+                  setActiveApiId(key as ApiId);
                 }
               }}
               styles={{ root: { borderBottom: '1px solid #edebe9', marginBottom: 12 } }}
             >
+              <PivotItem
+                key={PERMISSIONS_TAB}
+                itemKey={PERMISSIONS_TAB}
+                headerText="Permission matrix (all APIs)"
+              />
               {API_ORDER.map((id) => (
                 <PivotItem
                   key={id}
@@ -324,34 +500,52 @@ const DemoLauncher: React.FC<IDemoLauncherProps> = (props) => {
               ))}
             </Pivot>
 
-            <Stack tokens={{ childrenGap: 16 }}>
-              <ApiInfoPanel
-                api={api}
-                endpointUrl={endpoints[activeApiId]}
-                onEndpointUrlChange={handleEndpointUrlChange}
-              />
-              <RequestBuilder
-                api={api}
-                endpointUrl={endpoints[activeApiId]}
-                activeToken={activeToken}
-                bodyText={bodyText}
-                onBodyTextChange={setBodyText}
-                kqlFilter={kqlFilter}
-                onKqlFilterChange={setKqlFilter}
-                effectiveBody={effectiveRetrievalBody}
-                params={params[activeApiId]}
-                onParamChange={handleParamChange}
-              />
-              <ResponseViewer
-                api={api}
-                result={results[activeApiId]}
-                executing={executingApi === activeApiId}
-                onExecute={handleExecute}
-                canExecute={canExecute}
-                disabledReason={disabledReason}
-              />
-              <PermissionMatrix activeApiId={activeApiId} />
-            </Stack>
+            {activeTab === PERMISSIONS_TAB ? (
+              <PermissionMatrix />
+            ) : (
+              <Stack tokens={{ childrenGap: 16 }}>
+                <ApiInfoPanel
+                  api={api}
+                  endpointUrl={endpoints[activeApiId]}
+                  onEndpointUrlChange={handleEndpointUrlChange}
+                  authMode={authMode}
+                  permissionCheck={permissionCheck}
+                />
+                <RequestBuilder
+                  api={api}
+                  endpointUrl={endpoints[activeApiId]}
+                  activeToken={activeToken}
+                  bodyText={bodyText}
+                  onBodyTextChange={setBodyText}
+                  kqlFilter={retrievalKqlFilter}
+                  onKqlFilterChange={handleKqlFilterChange}
+                  queryString={retrievalQueryString}
+                  onQueryStringChange={handleQueryStringChange}
+                  dataSource={retrievalDataSource}
+                  onDataSourceChange={handleDataSourceChange}
+                  effectiveBody={effectiveRetrievalBody}
+                  params={params[activeApiId]}
+                  onParamChange={handleParamChange}
+                  selectedFields={selectedRetrievalFields}
+                  onSelectedFieldsChange={handleSelectedFieldsChange}
+                  interactionAppClasses={interactionAppClasses}
+                  onInteractionAppClassesChange={setInteractionAppClasses}
+                  interactionFrom={interactionFrom}
+                  onInteractionFromChange={setInteractionFrom}
+                  interactionTo={interactionTo}
+                  onInteractionToChange={setInteractionTo}
+                  interactionFilter={interactionFilter}
+                />
+                <ResponseViewer
+                  api={api}
+                  result={results[activeApiId]}
+                  executing={executingApi === activeApiId}
+                  onExecute={handleExecute}
+                  canExecute={canExecute}
+                  disabledReason={disabledReason}
+                />
+              </Stack>
+            )}
           </div>
         </div>
       </Stack>

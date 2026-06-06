@@ -34,9 +34,9 @@ export const API_CATALOG: Record<ApiId, IApiDefinition> = {
     tabLabel: 'Retrieval',
     title: 'Retrieval API',
     method: 'POST',
-    // Retrieval is delegated-only. Beta is used so the demo always lights up the
-    // newest behaviour; the presenter can switch to /v1.0 in the editable URL.
-    urlTemplate: 'https://graph.microsoft.com/beta/copilot/retrieval',
+    // Retrieval is delegated-only. v1.0 is the GA endpoint; the presenter can
+    // still switch to /beta in the editable URL to demo newer behaviour.
+    urlTemplate: 'https://graph.microsoft.com/v1.0/copilot/retrieval',
     docsUrl:
       'https://learn.microsoft.com/en-us/microsoft-365/copilot/extensibility/api/ai-services/retrieval/copilotroot-retrieval',
     permissions: {
@@ -50,7 +50,7 @@ export const API_CATALOG: Record<ApiId, IApiDefinition> = {
     // entityTypes/from/size shape often seen in early drafts. We pre-fill the
     // schema that actually returns 200 OK.
     defaultBody: {
-      queryString: 'budget planning 2025',
+      queryString: 'Tell me more about Cowork',
       dataSource: 'sharePoint',
       resourceMetadata: ['title', 'author'],
       maximumNumberOfResults: 5
@@ -160,6 +160,32 @@ export const API_ORDER: ApiId[] = [
   'usageSummary',
   'usageTrend',
   'usageUserDetail'
+];
+
+// -----------------------------------------------------------------------------
+// Retrieval API – resourceMetadata fields the presenter can toggle on/off.
+// The `apiName` is what we put inside the JSON body (`resourceMetadata: [...]`)
+// while `label` is the friendly text shown next to the checkbox in the UI.
+// -----------------------------------------------------------------------------
+export interface IRetrievalField {
+  label: string;
+  apiName: string;
+}
+
+export const RETRIEVAL_FIELDS: IRetrievalField[] = [
+  { label: 'File Name', apiName: 'fileName' },
+  { label: 'Path', apiName: 'path' },
+  { label: 'Author', apiName: 'author' },
+  { label: 'Size', apiName: 'size' },
+  { label: 'File Type', apiName: 'fileType' },
+  { label: 'Title', apiName: 'title' },
+  { label: 'Id', apiName: 'id' },
+  { label: 'Drive Id', apiName: 'driveId' },
+  { label: 'Site Id', apiName: 'siteId' },
+  { label: 'List Id', apiName: 'listId' },
+  { label: 'Created By', apiName: 'createdBy' },
+  { label: 'Last Modified Time', apiName: 'lastModifiedDateTime' },
+  { label: 'Modified By', apiName: 'lastModifiedBy' }
 ];
 
 // -----------------------------------------------------------------------------

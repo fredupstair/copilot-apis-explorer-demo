@@ -12,8 +12,8 @@ import { ApiId } from './types';
 import { API_CATALOG, API_ORDER } from './copilotApi';
 
 export interface IPermissionMatrixProps {
-  /** The API tab currently in focus – its row is highlighted. */
-  activeApiId: ApiId;
+  /** The API tab currently in focus – its row is highlighted. Omit to leave no row highlighted. */
+  activeApiId?: ApiId;
 }
 
 const cellStyle: React.CSSProperties = {
@@ -42,7 +42,7 @@ const PermissionMatrix: React.FC<IPermissionMatrixProps> = ({ activeApiId }) => 
           <tbody>
             {API_ORDER.map((id) => {
               const api = API_CATALOG[id];
-              const isActive = id === activeApiId;
+              const isActive = activeApiId !== undefined && id === activeApiId;
               return (
                 <tr
                   key={id}

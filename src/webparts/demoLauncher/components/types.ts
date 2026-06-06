@@ -146,6 +146,12 @@ export interface IAiInteraction {
     user?: { displayName?: string; id?: string };
     application?: { displayName?: string; id?: string };
   };
+  attachments?: Array<{
+    attachmentId?: string;
+    contentType?: string;
+    content?: string;
+    name?: string | null;
+  }>;
 }
 
 export interface IInteractionExportResponse {

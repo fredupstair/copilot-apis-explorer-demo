@@ -28,7 +28,7 @@ import {
   Text,
   TextField
 } from '@fluentui/react';
-import { AuthMode, IDecodedToken, IPermissionCheck } from './types';
+import { AuthMode, IDecodedToken } from './types';
 import { formatExpiryCountdown } from './copilotApi';
 
 export interface IAuthPanelProps {
@@ -46,10 +46,6 @@ export interface IAuthPanelProps {
 
   /** Decoded claims for whichever token is currently active. */
   decoded: IDecodedToken | undefined;
-
-  /** Permission check for the active API + auth mode. */
-  permissionCheck: IPermissionCheck;
-  selectedApiTitle: string;
 }
 
 const modeOptions: IChoiceGroupOption[] = [
@@ -73,9 +69,7 @@ const AuthPanel: React.FC<IAuthPanelProps> = (props) => {
     acquiringDelegated,
     appToken,
     onAppTokenChange,
-    decoded,
-    permissionCheck,
-    selectedApiTitle
+    decoded
   } = props;
 
   // A 1-second ticker so the expiry countdown actually counts down on screen.
@@ -112,12 +106,6 @@ const AuthPanel: React.FC<IAuthPanelProps> = (props) => {
         {authMode === 'graphClient' ? (
           // ------------------------- Delegated mode -------------------------
           <Stack tokens={{ childrenGap: 8 }}>
-            <Text variant="small">
-              Calls run as the signed-in user via{' '}
-              <code>msGraphClientFactory.getClient(&apos;3&apos;)</code>. Use the
-              button below to also acquire the raw access token and inspect its
-              claims.
-            </Text>
             <PrimaryButton
               text={acquiringDelegated ? 'Acquiring…' : 'Acquire & decode delegated token'}
               iconProps={{ iconName: 'Signin' }}
@@ -128,14 +116,6 @@ const AuthPanel: React.FC<IAuthPanelProps> = (props) => {
         ) : (
           // ------------------------- App Registration mode -------------------------
           <Stack tokens={{ childrenGap: 8 }}>
-            <MessageBar messageBarType={MessageBarType.info} isMultiline>
-              The browser cannot run the <code>client_credentials</code> flow
-              (CORS blocks the AAD token endpoint, and a client secret must
-              never live in JavaScript). Generate the token out-of-band — for
-              example with <code>auth/Get-AppToken.ps1</code> — and paste it
-              below. The countdown shows the JWT&apos;s <code>exp</code> claim.
-            </MessageBar>
-
             <TextField
               label="App-only access token"
               multiline
@@ -207,41 +187,6 @@ const AuthPanel: React.FC<IAuthPanelProps> = (props) => {
             </Stack>
           </div>
         )}
-
-        {/* Permission check for the selected API */}
-        <div style={sectionStyle}>
-          <Stack tokens={{ childrenGap: 4 }}>
-            <Text variant="mediumPlus" styles={{ root: { fontWeight: 600 } }}>
-              Permission check · {selectedApiTitle}
-            </Text>
-            {permissionCheck.required.length === 0 ? (
-              <MessageBar messageBarType={MessageBarType.warning} isMultiline>
-                This API is not supported for the current auth mode (see the info panel).
-              </MessageBar>
-            ) : (
-              <Stack horizontal wrap tokens={{ childrenGap: 6 }}>
-                {permissionCheck.required.map((scope) => {
-                  const ok = permissionCheck.granted.indexOf(scope) !== -1;
-                  return (
-                    <span
-                      key={scope}
-                      style={{
-                        padding: '2px 10px',
-                        borderRadius: 12,
-                        fontSize: 12,
-                        fontWeight: 600,
-                        color: '#fff',
-                        background: ok ? '#107c10' : '#a4262c'
-                      }}
-                    >
-                      <Icon iconName={ok ? 'CheckMark' : 'Cancel'} /> {scope}
-                    </span>
-                  );
-                })}
-              </Stack>
-            )}
-          </Stack>
-        </div>
       </Stack>
     </div>
   );
