@@ -1,0 +1,19 @@
+{
+  "@microsoft/generator-sharepoint": {
+    "useGulp": false,
+    "plusBeta": false,
+    "isCreatingSolution": true,
+    "nodeVersion": "22.22.0",
+    "sdksVersions": {},
+    "version": "1.23.1",
+    "libraryName": "hands-on-copilot-apis-demo",
+    "libraryId": "bef99f15-9fe6-46d1-b6db-8156bd4e8a76",
+    "environment": "spo",
+    "packageManager": "npm",
+    "solutionName": "hands-on-copilot-apis-demo",
+    "solutionShortDescription": "hands-on-copilot-apis-demo description",
+    "skipFeatureDeployment": true,
+    "isDomainIsolated": false,
+    "componentType": "webpart"
+  }
+}

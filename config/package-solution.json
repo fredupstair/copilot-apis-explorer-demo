@@ -1,0 +1,40 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/spfx-build/package-solution.schema.json",
+  "solution": {
+    "name": "hands-on-copilot-apis-demo-client-side-solution",
+    "id": "bef99f15-9fe6-46d1-b6db-8156bd4e8a76",
+    "version": "1.0.0.0",
+    "includeClientSideAssets": true,
+    "skipFeatureDeployment": true,
+    "isDomainIsolated": false,
+    "developer": {
+      "name": "",
+      "websiteUrl": "",
+      "privacyUrl": "",
+      "termsOfUseUrl": "",
+      "mpnId": "Undefined-1.23.1"
+    },
+    "metadata": {
+      "shortDescription": {
+        "default": "hands-on-copilot-apis-demo description"
+      },
+      "longDescription": {
+        "default": "hands-on-copilot-apis-demo description"
+      },
+      "screenshotPaths": [],
+      "videoUrl": "",
+      "categories": []
+    },
+    "features": [
+      {
+        "title": "hands-on-copilot-apis-demo Feature",
+        "description": "The feature that activates elements of the hands-on-copilot-apis-demo solution.",
+        "id": "2a8864ab-0201-4c52-8787-0de0e0144291",
+        "version": "1.0.0.0"
+      }
+    ]
+  },
+  "paths": {
+    "zippedPackage": "solution/hands-on-copilot-apis-demo.sppkg"
+  }
+}
