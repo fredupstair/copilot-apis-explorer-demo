@@ -38,6 +38,56 @@ const APP_CLASS_OPTIONS: { key: string; label: string }[] = [
   { key: 'IPM.Document.Microsoft.Copilot.PowerPoint', label: 'Copilot in PowerPoint' }
 ];
 
+/** Collapsible section used to chunk the Request builder body. */
+const Section: React.FC<{
+  title: React.ReactNode;
+  expanded: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+}> = ({ title, expanded, onToggle, children }) => {
+  return (
+    <div
+      style={{
+        border: '1px solid #edebe9',
+        borderRadius: 4,
+        background: '#ffffff',
+        overflow: 'hidden'
+      }}
+    >
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={expanded}
+        style={{
+          width: '100%',
+          background: '#f3f2f1',
+          border: 'none',
+          padding: '6px 10px',
+          cursor: 'pointer',
+          textAlign: 'left',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          fontSize: 13,
+          fontWeight: 600,
+          color: '#201f1e'
+        }}
+      >
+        <Icon
+          iconName="ChevronRight"
+          style={{
+            fontSize: 10,
+            transform: expanded ? 'rotate(90deg)' : 'rotate(0deg)',
+            transition: 'transform 0.15s ease'
+          }}
+        />
+        <span style={{ flex: 1 }}>{title}</span>
+      </button>
+      {expanded && <div style={{ padding: 12 }}>{children}</div>}
+    </div>
+  );
+};
+
 export interface IRequestBuilderProps {
   api: IApiDefinition;
   endpointUrl: string;
@@ -152,6 +202,48 @@ const RequestBuilder: React.FC<IRequestBuilderProps> = (props) => {
     onSelectedFieldsChange(checked ? RETRIEVAL_FIELDS.map((f) => f.apiName) : []);
   };
 
+  // ---------------------------------------------------------------------------
+  // Collapsible sections — keeps the URL above visible even when the builder
+  // has lots of inputs. Each section starts expanded; "Collapse all" / "Expand
+  // all" toggles them in bulk.
+  // ---------------------------------------------------------------------------
+  const sectionKeys = React.useMemo<string[]>(() => {
+    if (api.method === 'POST') {
+      const keys: string[] = [];
+      if (api.id === 'retrieval') keys.push('dataSource');
+      keys.push('queryInputs', 'bodyPreview');
+      if (api.id === 'retrieval') keys.push('fields');
+      return keys;
+    }
+    const keys = ['parameters'];
+    if (api.id === 'interactionExport') keys.push('filters');
+    return keys;
+  }, [api.method, api.id]);
+
+  const [expanded, setExpanded] = React.useState<Record<string, boolean>>(() => {
+    const init: Record<string, boolean> = {};
+    for (const k of sectionKeys) init[k] = true;
+    return init;
+  });
+
+  // When the active API changes the set of section keys changes too. Reset to
+  // all-expanded so the user always lands on a fully visible builder.
+  React.useEffect(() => {
+    const next: Record<string, boolean> = {};
+    for (const k of sectionKeys) next[k] = true;
+    setExpanded(next);
+  }, [sectionKeys]);
+
+  const allExpanded = sectionKeys.every((k) => expanded[k]);
+  const toggleSection = (key: string): void =>
+    setExpanded((prev) => ({ ...prev, [key]: !prev[key] }));
+  const toggleAllSections = (): void => {
+    const target = !allExpanded;
+    const next: Record<string, boolean> = {};
+    for (const k of sectionKeys) next[k] = target;
+    setExpanded(next);
+  };
+
   return (
     <div
       style={{
@@ -161,26 +253,27 @@ const RequestBuilder: React.FC<IRequestBuilderProps> = (props) => {
       }}
     >
       <Stack tokens={{ childrenGap: 12 }}>
-        <Text variant="large" styles={{ root: { fontWeight: 600 } }}>
-          <Icon iconName="Edit" /> Request builder
-        </Text>
+        <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 8 }}>
+          <Text variant="large" styles={{ root: { fontWeight: 600, flexGrow: 1 } }}>
+            <Icon iconName="Edit" /> Request builder
+          </Text>
+          <DefaultButton
+            iconProps={{ iconName: allExpanded ? 'CollapseContent' : 'ExploreContent' }}
+            text={allExpanded ? 'Collapse all' : 'Expand all'}
+            onClick={toggleAllSections}
+          />
+        </Stack>
 
         {api.method === 'POST' ? (
           // -------------------- POST: structured inputs + readonly JSON preview --------------------
           <Stack tokens={{ childrenGap: 10 }}>
             {api.id === 'retrieval' && (
-              <div
-                style={{
-                  border: '1px solid #edebe9',
-                  borderRadius: 4,
-                  padding: '8px 10px',
-                  background: '#faf9f8'
-                }}
+              <Section
+                title={<>Data source <span style={{ color: '#a4262c' }}>*</span></>}
+                expanded={!!expanded.dataSource}
+                onToggle={() => toggleSection('dataSource')}
               >
                 <Stack tokens={{ childrenGap: 4 }}>
-                  <Text variant="small" styles={{ root: { fontWeight: 600 } }}>
-                    Data source <span style={{ color: '#a4262c' }}>*</span>
-                  </Text>
                   <Text variant="xSmall" styles={{ root: { color: '#605e5c' } }}>
                     Indicates whether extracts should be retrieved from SharePoint, OneDrive, or Copilot connectors. Acceptable values are <code>sharePoint</code>, <code>oneDriveBusiness</code>, and <code>externalItem</code>. Required.
                   </Text>
@@ -193,56 +286,66 @@ const RequestBuilder: React.FC<IRequestBuilderProps> = (props) => {
                     styles={{ flexContainer: { display: 'flex', gap: 16, flexWrap: 'wrap' } }}
                   />
                 </Stack>
-              </div>
+              </Section>
             )}
-            <TextField
-              label="Query string"
-              description='The natural-language query Copilot will ground its answer on (maps to body.queryString).'
-              placeholder="Tell me more about Cowork"
-              value={queryString ?? ''}
-              onChange={(_e, v) => onQueryStringChange && onQueryStringChange(v ?? '')}
-              styles={{ field: { fontFamily: 'Consolas, monospace', fontSize: 12 } }}
-            />
-            <TextField
-              label='KQL filter — injected into the body as "filterExpression"'
-              placeholder={`FileExtension:"docx" OR FileExtension:"pdf"`}
-              value={kqlFilter ?? ''}
-              onChange={(_e, v) => onKqlFilterChange && onKqlFilterChange(v ?? '')}
-              styles={{ field: { fontFamily: 'Consolas, monospace', fontSize: 12 } }}
-            />
-            <TextField
-              label="Request body (JSON) — read-only preview"
-              description="Updated live as you edit the fields above and the checkboxes below."
-              multiline
-              rows={10}
-              readOnly
-              value={bodyText}
-              styles={{
-                field: {
-                  fontFamily: 'Consolas, monospace',
-                  fontSize: 12,
-                  background: '#f3f2f1',
-                  color: '#323130'
-                }
-              }}
-            />
-            {api.id === 'retrieval' && (
-              <div
-                style={{
-                  border: '1px solid #edebe9',
-                  borderRadius: 4,
-                  padding: 10,
-                  background: '#faf9f8'
+            <Section
+              title="Query inputs"
+              expanded={!!expanded.queryInputs}
+              onToggle={() => toggleSection('queryInputs')}
+            >
+              <Stack tokens={{ childrenGap: 10 }}>
+                <TextField
+                  label="Query string"
+                  description='The natural-language query Copilot will ground its answer on (maps to body.queryString).'
+                  placeholder="Tell me more about Cowork"
+                  value={queryString ?? ''}
+                  onChange={(_e, v) => onQueryStringChange && onQueryStringChange(v ?? '')}
+                  styles={{ field: { fontFamily: 'Consolas, monospace', fontSize: 12 } }}
+                />
+                <TextField
+                  label='KQL filter — injected into the body as "filterExpression"'
+                  placeholder={`FileExtension:"docx" OR FileExtension:"pdf"`}
+                  value={kqlFilter ?? ''}
+                  onChange={(_e, v) => onKqlFilterChange && onKqlFilterChange(v ?? '')}
+                  styles={{ field: { fontFamily: 'Consolas, monospace', fontSize: 12 } }}
+                />
+              </Stack>
+            </Section>
+            <Section
+              title="Request body (JSON) — read-only preview"
+              expanded={!!expanded.bodyPreview}
+              onToggle={() => toggleSection('bodyPreview')}
+            >
+              <TextField
+                description="Updated live as you edit the fields above and the checkboxes below."
+                multiline
+                rows={10}
+                readOnly
+                value={bodyText}
+                styles={{
+                  field: {
+                    fontFamily: 'Consolas, monospace',
+                    fontSize: 12,
+                    background: '#f3f2f1',
+                    color: '#323130'
+                  }
                 }}
-              >
-                <Stack tokens={{ childrenGap: 6 }}>
-                  <Text variant="small" styles={{ root: { fontWeight: 600 } }}>
+              />
+            </Section>
+            {api.id === 'retrieval' && (
+              <Section
+                title={
+                  <>
                     Fields to return
                     <span style={{ fontWeight: 400, color: '#605e5c' }}>
-                      {' '}
-                      — maps to the body&apos;s <code>resourceMetadata</code> array
+                      {' '}— maps to the body&apos;s <code>resourceMetadata</code> array
                     </span>
-                  </Text>
+                  </>
+                }
+                expanded={!!expanded.fields}
+                onToggle={() => toggleSection('fields')}
+              >
+                <Stack tokens={{ childrenGap: 6 }}>
                   <Checkbox
                     label={`Select All (${fields.length}/${RETRIEVAL_FIELDS.length})`}
                     checked={allSelected}
@@ -268,53 +371,57 @@ const RequestBuilder: React.FC<IRequestBuilderProps> = (props) => {
                     ))}
                   </div>
                 </Stack>
-              </div>
+              </Section>
             )}
           </Stack>
         ) : (
           // -------------------- GET: one field per parameter --------------------
           <Stack tokens={{ childrenGap: 10 }}>
-            {(() => {
-              // Hide the auto-managed $filter row for Interaction Export so the
-              // user only edits it through the structured filter card below.
-              const visible = (params ?? [])
-                .map((p, i) => ({ p, originalIndex: i }))
-                .filter(({ p }) => !(api.id === 'interactionExport' && p.key === '$filter'));
-              if (visible.length === 0) {
-                return (
-                  <Text variant="small">This endpoint takes no editable parameters.</Text>
-                );
-              }
-              return visible.map(({ p, originalIndex }) => (
-                <TextField
-                  key={p.key}
-                  label={`${p.key}  (${p.location})`}
-                  description={p.hint}
-                  value={p.value}
-                  onChange={(_e, v) => onParamChange && onParamChange(originalIndex, v ?? '')}
-                  styles={{ field: { fontFamily: 'Consolas, monospace', fontSize: 12 } }}
-                />
-              ));
-            })()}
+            <Section
+              title="Parameters"
+              expanded={!!expanded.parameters}
+              onToggle={() => toggleSection('parameters')}
+            >
+              <Stack tokens={{ childrenGap: 10 }}>
+                {(() => {
+                  // Hide the auto-managed $filter row for Interaction Export so the
+                  // user only edits it through the structured filter card below.
+                  const visible = (params ?? [])
+                    .map((p, i) => ({ p, originalIndex: i }))
+                    .filter(({ p }) => !(api.id === 'interactionExport' && p.key === '$filter'));
+                  if (visible.length === 0) {
+                    return (
+                      <Text variant="small">This endpoint takes no editable parameters.</Text>
+                    );
+                  }
+                  return visible.map(({ p, originalIndex }) => (
+                    <TextField
+                      key={p.key}
+                      label={`${p.key}  (${p.location})`}
+                      description={p.hint}
+                      value={p.value}
+                      onChange={(_e, v) => onParamChange && onParamChange(originalIndex, v ?? '')}
+                      styles={{ field: { fontFamily: 'Consolas, monospace', fontSize: 12 } }}
+                    />
+                  ));
+                })()}
+              </Stack>
+            </Section>
 
             {api.id === 'interactionExport' && (
-              <div
-                style={{
-                  border: '1px solid #edebe9',
-                  borderRadius: 4,
-                  padding: 12,
-                  background: '#faf9f8'
-                }}
-              >
-                <Stack tokens={{ childrenGap: 10 }}>
-                  <Text variant="small" styles={{ root: { fontWeight: 600 } }}>
+              <Section
+                title={
+                  <>
                     Filters
                     <span style={{ fontWeight: 400, color: '#605e5c' }}>
-                      {' '}
-                      — translated into the OData{' '}
-                      <code>$filter</code> query parameter.
+                      {' '}— translated into the OData <code>$filter</code> query parameter.
                     </span>
-                  </Text>
+                  </>
+                }
+                expanded={!!expanded.filters}
+                onToggle={() => toggleSection('filters')}
+              >
+                <Stack tokens={{ childrenGap: 10 }}>
                   <Text variant="xSmall" styles={{ root: { color: '#605e5c' } }}>
                     Per docs, the <code>createdDateTime</code> filter requires
                     BOTH a minimum and a maximum boundary; date/time fields
@@ -457,7 +564,7 @@ const RequestBuilder: React.FC<IRequestBuilderProps> = (props) => {
                     </div>
                   )}
                 </Stack>
-              </div>
+              </Section>
             )}
           </Stack>
         )}
