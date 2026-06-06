@@ -94,7 +94,18 @@ workbench (the local `localhost` workbench has no Graph token):
 
 ```powershell
 npm install            # restores existing dependencies (no new packages added)
-npm run start          # heft start (serves the bundle)
+heft start             # builds, serves the bundle on https://localhost:4321 and opens the hosted workbench
+```
+
+Useful Heft commands:
+
+```powershell
+heft start                      # dev loop: clean, build, serve, watch (equivalent to legacy `gulp serve`)
+heft test                       # one-shot dev build (equivalent to legacy `gulp bundle`)
+heft test --production          # production bundle
+heft package-solution           # build the .sppkg (debug)
+heft package-solution --production  # build the .sppkg (ship)
+heft clean                      # wipe lib / temp / dist / sharepoint
 ```
 
 Then open:
@@ -114,7 +125,8 @@ Add the **Copilot API Explorer** web part from the *Advanced* group.
 ## Deploy to the SharePoint App Catalog
 
 ```powershell
-npm run build          # heft test --production && heft package-solution --production
+heft test --clean --production
+heft package-solution --production
 ```
 
 1. Upload the generated package from `sharepoint/solution/hands-on-copilot-apis-demo.sppkg`
