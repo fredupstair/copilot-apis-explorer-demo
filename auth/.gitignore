@@ -1,0 +1,3 @@
+# Real secrets — never commit.
+secrets.ps1
+*.secret.ps1

@@ -7,6 +7,11 @@
     "includeClientSideAssets": true,
     "skipFeatureDeployment": true,
     "isDomainIsolated": false,
+    "webApiPermissionRequests": [
+      { "resource": "Microsoft Graph", "scope": "Files.Read.All" },
+      { "resource": "Microsoft Graph", "scope": "Sites.Read.All" },
+      { "resource": "Microsoft Graph", "scope": "Reports.Read.All" }
+    ],
     "developer": {
       "name": "",
       "websiteUrl": "",

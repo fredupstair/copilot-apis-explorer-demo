@@ -36,3 +36,7 @@ obj
 
 # Styles Generated Code
 *.scss.ts
+
+# Local secrets (client credentials, tokens, etc.)
+auth/secrets.ps1
+auth/*.secret.ps1

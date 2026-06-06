@@ -29,7 +29,10 @@ export default class DemoLauncherWebPart extends BaseClientSideWebPart<IDemoLaun
         isDarkTheme: this._isDarkTheme,
         environmentMessage: this._environmentMessage,
         hasTeamsContext: !!this.context.sdks.microsoftTeams,
-        userDisplayName: this.context.pageContext.user.displayName
+        userDisplayName: this.context.pageContext.user.displayName,
+        // The explorer needs SPFx services (Graph client + AAD token provider),
+        // so we hand the whole web part context down to the React tree.
+        context: this.context
       }
     );
 

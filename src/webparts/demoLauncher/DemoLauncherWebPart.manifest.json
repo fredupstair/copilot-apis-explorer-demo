@@ -13,16 +13,17 @@
   // https://support.office.com/en-us/article/Turn-scripting-capabilities-on-or-off-1f2c515f-5d7e-448a-9fd7-835da935584f
   "requiresCustomScript": false,
   "supportedHosts": ["SharePointWebPart", "TeamsPersonalApp", "TeamsTab", "SharePointFullPage"],
+  "supportsFullBleed": true,
   "supportsThemeVariants": true,
 
   "preconfiguredEntries": [{
     "groupId": "5c03119e-3074-46fd-976b-c60198311f70", // Advanced
     "group": { "default": "Advanced" },
-    "title": { "default": "DemoLauncher" },
-    "description": { "default": "DemoLauncher description" },
-    "officeFabricIconFontName": "Page",
+    "title": { "default": "Copilot API Explorer" },
+    "description": { "default": "Interactive explorer & demo for the Microsoft 365 Copilot / Graph APIs (Retrieval, Interaction Export, Usage reports)." },
+    "officeFabricIconFontName": "Robot",
     "properties": {
-      "description": "DemoLauncher"
+      "description": "Copilot API Explorer"
     }
   }]
 }
