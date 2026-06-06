@@ -1,6 +1,6 @@
 # Copilot API Explorer — SPFx Web Part
 
-An interactive **conference-demo web part** that lets you explore and call five
+An interactive **demo web part** that lets you explore and call five
 Microsoft 365 Copilot / Microsoft Graph APIs live from a SharePoint page:
 
 | # | API | Method | Endpoint |
