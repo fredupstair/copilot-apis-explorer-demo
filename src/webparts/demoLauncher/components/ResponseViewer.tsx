@@ -31,6 +31,7 @@ import {
   IAiInteraction,
   IApiCallResult,
   IApiDefinition,
+  IRetrievalExtract,
   IRetrievalHit
 } from './types';
 import { copyToClipboard } from './copilotApi';
@@ -642,11 +643,8 @@ function describeUrl(url: string): { siteCrumb: string; pageName: string } {
 }
 
 /** A single retrieval hit card with collapsible extracts. */
-const RetrievalHitCard: React.FC<{ hit: IRetrievalHit; rank: number; topScore: number }> = ({
-  hit,
-  rank,
-  topScore
-}) => {
+function RetrievalHitCard(props: { hit: IRetrievalHit; rank: number; topScore: number }): JSX.Element {
+  const { hit, rank, topScore } = props;
   const title = hit.resourceMetadata?.title || hit.webUrl;
   const author = hit.resourceMetadata?.author;
   const { siteCrumb, pageName } = describeUrl(hit.webUrl);
@@ -760,18 +758,15 @@ const RetrievalHitCard: React.FC<{ hit: IRetrievalHit; rank: number; topScore: n
       </Stack>
     </div>
   );
-};
+}
 
 /** A single extract rendered as a collapsible accordion. Collapsed by default;
  *  the header stays visible (with the score chip) so the audience can scan
  *  relevance at a glance, and clicking expands the full text. Once expanded
  *  the user can toggle between a Formatted view (markdown + inline styled
  *  spans + slide separators) and a Raw view (verbatim text). */
-const ExtractBlock: React.FC<{ extract: IRetrievalExtract; index: number; total: number }> = ({
-  extract,
-  index,
-  total
-}) => {
+function ExtractBlock(props: { extract: IRetrievalExtract; index: number; total: number }): JSX.Element {
+  const { extract, index, total } = props;
   const [expanded, setExpanded] = React.useState<boolean>(false);
   const [mode, setMode] = React.useState<'formatted' | 'raw'>('formatted');
   const cleaned = cleanExtractText(extract.text);
@@ -915,7 +910,7 @@ const ExtractBlock: React.FC<{ extract: IRetrievalExtract; index: number; total:
       )}
     </div>
   );
-};
+}
 
 /** Normalise the raw extract text returned by the Retrieval API.
  *  - Collapse \r\n to \n.
@@ -960,7 +955,7 @@ function renderMiniMarkdown(text: string): React.ReactNode {
 
   for (let i = 0; i < lines.length; i++) {
     const rawLine = lines[i];
-    const line = rawLine.trimEnd();
+    const line = rawLine.replace(/\s+$/, '');
 
     const listMatch = /^\s*-\s+(.*)$/.exec(line);
     if (listMatch) {
@@ -1186,7 +1181,8 @@ function groupInteractionsBySession(items: IAiInteraction[]): ISessionGroup[] {
   return Array.from(map.values()).sort((a, b) => (a.latest < b.latest ? 1 : a.latest > b.latest ? -1 : 0));
 }
 
-const InteractionsBySession: React.FC<{ items: IAiInteraction[] }> = ({ items }) => {
+function InteractionsBySession(props: { items: IAiInteraction[] }): JSX.Element {
+  const { items } = props;
   const groups = React.useMemo(() => groupInteractionsBySession(items), [items]);
   // First session expanded by default; rest collapsed. Keyed by sessionId.
   const [expandedSessions, setExpandedSessions] = React.useState<Record<string, boolean>>(() => {
@@ -1218,13 +1214,10 @@ const InteractionsBySession: React.FC<{ items: IAiInteraction[] }> = ({ items })
       ))}
     </Stack>
   );
-};
+}
 
-const SessionCard: React.FC<{
-  group: ISessionGroup;
-  expanded: boolean;
-  onToggle: () => void;
-}> = ({ group, expanded, onToggle }) => {
+function SessionCard(props: { group: ISessionGroup; expanded: boolean; onToggle: () => void }): JSX.Element {
+  const { group, expanded, onToggle } = props;
   // Conversation order: oldest first, so we read the thread top-to-bottom like
   // a real chat (prompt -> response -> follow-up prompt -> response).
   const ordered = React.useMemo(() => {
@@ -1319,7 +1312,7 @@ const SessionCard: React.FC<{
       )}
     </div>
   );
-};
+}
 
 /** Extract the most useful display text out of an interaction's body.
  *  - For html bodies that are just an <attachment id="X"> placeholder, pulls
@@ -1358,7 +1351,8 @@ function extractInteractionText(item: IAiInteraction): string {
   return att.content;
 }
 
-const ChatBubble: React.FC<{ item: IAiInteraction }> = ({ item }) => {
+function ChatBubble(props: { item: IAiInteraction }): JSX.Element {
+  const { item } = props;
   const isPrompt = item.interactionType === 'userPrompt';
   const isResponse = item.interactionType === 'aiResponse';
   const bg = isPrompt ? '#fff4ce' : isResponse ? '#deecf9' : '#f3f2f1';
@@ -1450,7 +1444,7 @@ const ChatBubble: React.FC<{ item: IAiInteraction }> = ({ item }) => {
       </div>
     </div>
   );
-};
+}
 
 // -----------------------------------------------------------------------------
 // Copilot Usage report renderers
@@ -1583,12 +1577,9 @@ function renderUsageSummary(body: unknown): React.ReactNode {
 }
 
 /** Small KPI card used by the Summary header. */
-const StatCard: React.FC<{ label: string; value: number | string; sub?: string; accent?: boolean }> = ({
-  label,
-  value,
-  sub,
-  accent
-}) => (
+function StatCard(props: { label: string; value: number | string; sub?: string; accent?: boolean }): JSX.Element {
+  const { label, value, sub, accent } = props;
+  return (
   <div
     style={{
       border: `1px solid ${accent ? '#0078d4' : '#edebe9'}`,
@@ -1610,15 +1601,12 @@ const StatCard: React.FC<{ label: string; value: number | string; sub?: string; 
       </Text>
     )}
   </div>
-);
+  );
+}
 
 /** A single active/enabled horizontal bar with rate label. */
-const AppBar: React.FC<{ label: string; active: number; enabled: number; highlight?: boolean }> = ({
-  label,
-  active,
-  enabled,
-  highlight
-}) => {
+function AppBar(props: { label: string; active: number; enabled: number; highlight?: boolean }): JSX.Element {
+  const { label, active, enabled, highlight } = props;
   const pct = enabled > 0 ? (active / enabled) * 100 : 0;
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1649,7 +1637,7 @@ const AppBar: React.FC<{ label: string; active: number; enabled: number; highlig
       </span>
     </div>
   );
-};
+}
 
 // ---- 2. Usage Trend (interactive) ------------------------------------------
 
